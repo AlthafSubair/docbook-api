@@ -3,10 +3,16 @@ import { AppService } from './app.service.js';
 
 @Controller("system")
 export class AppController {
-  constructor(private readonly appService: AppService) {}
+  constructor(private readonly appService: AppService) { }
 
   @Get("health")
-  getHealth(): string {
+  getHealth() {
     return this.appService.getHealth();
   }
+
+  @Get('ready')
+  async getDatabaseHealth() {
+    return this.appService.getDatabaseHealth();
+  }
+
 }
