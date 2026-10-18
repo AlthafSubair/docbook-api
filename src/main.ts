@@ -12,6 +12,8 @@ async function bootstrap() {
 
     app.enableShutdownHooks();
 
+    app.setGlobalPrefix('api/v1');
+
     app.useGlobalPipes(
       new ValidationPipe({
         whitelist: true,
