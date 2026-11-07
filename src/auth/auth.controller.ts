@@ -1,9 +1,25 @@
-import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
-import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { AuthService, AuthResponse } from './auth.service.js';
 import { SendOtpDto } from './dto/send-otp.dto.js';
 import { VerifyOtpDto } from './dto/verify-otp.dto.js';
 import { RefreshTokenDto } from './dto/refresh-token.dto.js';
+import { JwtAuthGuard } from './guards/jwt-auth.guard.js';
+import { CurrentUser } from './decorators/current-user.decorator.js';
+import type { JwtPayload } from './services/token.service.js';
 
 @ApiTags('Authentication')
 @Controller('auth')
@@ -100,5 +116,36 @@ export class AuthController {
   })
   async logout(@Body() dto: RefreshTokenDto): Promise<{ message: string }> {
     return this.authService.logout(dto);
+  }
+
+  @Get('me')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Get Current Authenticated Session',
+    description:
+      'Validates the Bearer Access Token in the Authorization header and returns the authenticated session details.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Current session information',
+    schema: {
+      example: {
+        authenticated: true,
+        phone: '+919876543210',
+        role: 'patient',
+      },
+    },
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Missing, invalid, or expired Access Token',
+  })
+  getMe(@CurrentUser() user: JwtPayload) {
+    return {
+      authenticated: true,
+      phone: user.phone,
+      role: user.role,
+    };
   }
 }
