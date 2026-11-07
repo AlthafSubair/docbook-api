@@ -6,8 +6,13 @@ import {
   Length,
   Matches,
 } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
 
 export class VerifyOtpDto {
+  @ApiProperty({
+    example: 'IN',
+    description: 'ISO 3166-1 alpha-2 country code (e.g. IN, US, AE)',
+  })
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? value.trim().toUpperCase() : value,
   )
@@ -19,6 +24,10 @@ export class VerifyOtpDto {
   })
   country!: string;
 
+  @ApiProperty({
+    example: '9876543210',
+    description: 'National phone number digits without country code',
+  })
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? value.trim() : value,
   )
@@ -29,6 +38,10 @@ export class VerifyOtpDto {
   })
   number!: string;
 
+  @ApiProperty({
+    example: '492817',
+    description: '6-digit numeric OTP code received via SMS',
+  })
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? value.trim() : value,
   )

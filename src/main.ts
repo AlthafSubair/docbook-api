@@ -1,7 +1,7 @@
 import { Logger, ValidationPipe } from '@nestjs/common';
-
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module.js';
 
 async function bootstrap() {
@@ -11,6 +11,11 @@ async function bootstrap() {
     const app = await NestFactory.create(AppModule);
 
     app.enableShutdownHooks();
+
+    app.enableCors({
+      origin: true,
+      credentials: true,
+    });
 
     app.setGlobalPrefix('api/v1');
 
@@ -22,12 +27,36 @@ async function bootstrap() {
       }),
     );
 
+    // Swagger / OpenAPI documentation
+    const swaggerConfig = new DocumentBuilder()
+      .setTitle('DocBook API')
+      .setDescription(
+        'DocBook – QR-based clinic appointment booking platform backend API',
+      )
+      .setVersion('1.0')
+      .addBearerAuth(
+        {
+          type: 'http',
+          scheme: 'bearer',
+          bearerFormat: 'JWT',
+          name: 'JWT',
+          description: 'Enter your JWT access token',
+          in: 'header',
+        },
+        'JWT-auth',
+      )
+      .build();
+
+    const document = SwaggerModule.createDocument(app, swaggerConfig);
+    SwaggerModule.setup('api/docs', app, document);
+
     const configService = app.get(ConfigService);
     const port = configService.get<number>('port') ?? 3000;
 
     await app.listen(port);
 
     logger.log(`DocBook API listening on port ${port}`);
+    logger.log(`Swagger documentation available at http://localhost:${port}/api/docs`);
   } catch (error) {
     logger.error(
       'Application startup failed',

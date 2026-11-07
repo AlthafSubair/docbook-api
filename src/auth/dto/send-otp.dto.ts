@@ -5,8 +5,13 @@ import {
   IsString,
   Matches,
 } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
 
 export class SendOtpDto {
+  @ApiProperty({
+    example: 'IN',
+    description: 'ISO 3166-1 alpha-2 country code (e.g. IN, US, AE)',
+  })
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? value.trim().toUpperCase() : value,
   )
@@ -18,6 +23,10 @@ export class SendOtpDto {
   })
   country!: string;
 
+  @ApiProperty({
+    example: '9876543210',
+    description: 'National phone number digits without country code',
+  })
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? value.trim() : value,
   )
