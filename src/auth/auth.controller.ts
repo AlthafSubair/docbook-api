@@ -5,26 +5,44 @@ import {
   HttpCode,
   HttpStatus,
   Post,
+  Req,
+  Res,
+  UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import {
   ApiBearerAuth,
   ApiOperation,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { AuthService, AuthResponse } from './auth.service.js';
+import type { Request, Response } from 'express';
+import { AuthService } from './auth.service.js';
 import { SendOtpDto } from './dto/send-otp.dto.js';
 import { VerifyOtpDto } from './dto/verify-otp.dto.js';
 import { RefreshTokenDto } from './dto/refresh-token.dto.js';
 import { JwtAuthGuard } from './guards/jwt-auth.guard.js';
 import { CurrentUser } from './decorators/current-user.decorator.js';
+import {
+  REFRESH_COOKIE_NAME,
+  getRefreshCookieOptions,
+  getClearRefreshCookieOptions,
+} from './constants/cookie.constants.js';
 import type { JwtPayload } from './services/token.service.js';
 
 @ApiTags('Authentication')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  private readonly isProduction: boolean;
+
+  constructor(
+    private readonly authService: AuthService,
+    private readonly configService: ConfigService,
+  ) {
+    this.isProduction =
+      this.configService.get<string>('NODE_ENV') === 'production';
+  }
 
   @Post('send-otp')
   @HttpCode(HttpStatus.OK)
@@ -53,16 +71,16 @@ export class AuthController {
   @ApiOperation({
     summary: 'Verify OTP & Log In',
     description:
-      'Verifies the submitted 6-digit OTP, marks it consumed, and issues a 15-minute Access Token and 30-day Refresh Token.',
+      'Verifies the submitted 6-digit OTP, marks it consumed, issues a 15-minute Access Token, and sets a 7-day HttpOnly Refresh Token cookie.',
   })
   @ApiResponse({
     status: 200,
-    description: 'Authentication successful with JWT token pair',
+    description:
+      'Authentication successful. Access token returned in response body; Refresh token set in HttpOnly cookie.',
     schema: {
       example: {
         message: 'Authentication successful',
         accessToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
-        refreshToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
       },
     },
   })
@@ -70,8 +88,22 @@ export class AuthController {
     status: 400,
     description: 'Invalid OTP, expired OTP, or maximum attempts exceeded',
   })
-  async verifyOtp(@Body() dto: VerifyOtpDto): Promise<AuthResponse> {
-    return this.authService.verifyOtp(dto);
+  async verifyOtp(
+    @Body() dto: VerifyOtpDto,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<{ message: string; accessToken: string }> {
+    const result = await this.authService.verifyOtp(dto);
+
+    res.cookie(
+      REFRESH_COOKIE_NAME,
+      result.refreshToken,
+      getRefreshCookieOptions(this.isProduction),
+    );
+
+    return {
+      message: result.message,
+      accessToken: result.accessToken,
+    };
   }
 
   @Post('refresh-token')
@@ -79,16 +111,16 @@ export class AuthController {
   @ApiOperation({
     summary: 'Renew Access Token (Token Rotation)',
     description:
-      'Validates the refresh token, revokes it, and issues a fresh Access Token and Refresh Token pair.',
+      'Validates the refresh token (read from HttpOnly cookie or request body), revokes it, and issues a fresh Access Token and new HttpOnly Refresh Token cookie.',
   })
   @ApiResponse({
     status: 200,
-    description: 'Token rotated and new token pair issued',
+    description:
+      'Token rotated. Fresh access token returned in body; new refresh token set in HttpOnly cookie.',
     schema: {
       example: {
         message: 'Token refreshed successfully',
         accessToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
-        refreshToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
       },
     },
   })
@@ -96,8 +128,29 @@ export class AuthController {
     status: 401,
     description: 'Invalid, expired, or compromised refresh token',
   })
-  async refreshToken(@Body() dto: RefreshTokenDto): Promise<AuthResponse> {
-    return this.authService.refreshToken(dto);
+  async refreshToken(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+    @Body() dto?: RefreshTokenDto,
+  ): Promise<{ message: string; accessToken: string }> {
+    const rawToken = req.cookies?.[REFRESH_COOKIE_NAME] ?? dto?.refreshToken;
+
+    if (!rawToken) {
+      throw new UnauthorizedException('Refresh token is required');
+    }
+
+    const result = await this.authService.refreshToken(rawToken);
+
+    res.cookie(
+      REFRESH_COOKIE_NAME,
+      result.refreshToken,
+      getRefreshCookieOptions(this.isProduction),
+    );
+
+    return {
+      message: result.message,
+      accessToken: result.accessToken,
+    };
   }
 
   @Post('logout')
@@ -105,17 +158,34 @@ export class AuthController {
   @ApiOperation({
     summary: 'Log Out',
     description:
-      'Revokes the current refresh token session in the database so it can never be used again.',
+      'Revokes the current refresh token session in the database and clears the HttpOnly Refresh Token cookie.',
   })
   @ApiResponse({
     status: 200,
-    description: 'Successfully logged out and session revoked',
+    description: 'Successfully logged out, session revoked, and cookie cleared',
     schema: {
       example: { message: 'Logged out successfully' },
     },
   })
-  async logout(@Body() dto: RefreshTokenDto): Promise<{ message: string }> {
-    return this.authService.logout(dto);
+  async logout(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+    @Body() dto?: RefreshTokenDto,
+  ): Promise<{ message: string }> {
+    const rawToken = req.cookies?.[REFRESH_COOKIE_NAME] ?? dto?.refreshToken;
+
+    if (rawToken) {
+      await this.authService.logout(rawToken);
+    }
+
+    res.clearCookie(
+      REFRESH_COOKIE_NAME,
+      getClearRefreshCookieOptions(this.isProduction),
+    );
+
+    return {
+      message: 'Logged out successfully',
+    };
   }
 
   @Get('me')

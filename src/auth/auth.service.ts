@@ -4,7 +4,6 @@ import { SmsService } from './services/sms.service.js';
 import { TokenService, TokenPair } from './services/token.service.js';
 import { SendOtpDto } from './dto/send-otp.dto.js';
 import { VerifyOtpDto } from './dto/verify-otp.dto.js';
-import { RefreshTokenDto } from './dto/refresh-token.dto.js';
 
 export interface AuthResponse extends TokenPair {
   message: string;
@@ -56,10 +55,8 @@ export class AuthService {
   /**
    * Rotates a refresh token: revokes the old one and issues a new pair.
    */
-  async refreshToken(dto: RefreshTokenDto): Promise<AuthResponse> {
-    const tokens = await this.tokenService.rotateRefreshToken(
-      dto.refreshToken,
-    );
+  async refreshToken(refreshToken: string): Promise<AuthResponse> {
+    const tokens = await this.tokenService.rotateRefreshToken(refreshToken);
 
     return {
       message: 'Token refreshed successfully',
@@ -71,8 +68,8 @@ export class AuthService {
   /**
    * Logs out the user by revoking the refresh token session.
    */
-  async logout(dto: RefreshTokenDto): Promise<{ message: string }> {
-    await this.tokenService.revokeRefreshToken(dto.refreshToken);
+  async logout(refreshToken: string): Promise<{ message: string }> {
+    await this.tokenService.revokeRefreshToken(refreshToken);
 
     return {
       message: 'Logged out successfully',

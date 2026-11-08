@@ -2,6 +2,7 @@ import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module.js';
 
 async function bootstrap() {
@@ -16,6 +17,8 @@ async function bootstrap() {
       origin: true,
       credentials: true,
     });
+
+    app.use(cookieParser());
 
     app.setGlobalPrefix('api/v1');
 
