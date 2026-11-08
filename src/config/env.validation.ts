@@ -21,6 +21,23 @@ export const envValidationSchema = Joi.object({
 
   DB_NAME: Joi.string().trim().required(),
 
+  FRONTEND_URL: Joi.string()
+    .default('http://localhost:3000'),
+
+  BASE_DOMAIN: Joi.string()
+    .default('docbook.health'),
+
+  COOKIE_DOMAIN: Joi.string()
+    .allow('')
+    .optional(),
+
+  COOKIE_SAME_SITE: Joi.string()
+    .valid('lax', 'strict', 'none')
+    .default('lax'),
+
+  COOKIE_SECURE: Joi.boolean()
+    .optional(),
+
   OTP_EXPIRATION_MINUTES: Joi.number()
     .positive()
     .default(5),

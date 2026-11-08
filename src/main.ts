@@ -13,9 +13,76 @@ async function bootstrap() {
 
     app.enableShutdownHooks();
 
+    const configService = app.get(ConfigService);
+    const port = configService.get<number>('port') ?? 3000;
+    const isProduction =
+      configService.get<string>('NODE_ENV') === 'production';
+    const frontendUrl =
+      configService.get<string>('cors.frontendUrl') ?? 'http://localhost:3000';
+    const baseDomain =
+      configService.get<string>('cors.baseDomain') ?? 'docbook.health';
+
+    // Parse comma-separated allowed origins (e.g. "https://docbook.health,http://localhost:3000")
+    const allowedOrigins = frontendUrl
+      .split(',')
+      .map((url) => url.trim().toLowerCase())
+      .filter(Boolean);
+
+    const isOriginAllowed = (origin: string): boolean => {
+      const lowerOrigin = origin.toLowerCase();
+
+      // 1. Exact match in allowed origins list
+      if (allowedOrigins.includes(lowerOrigin)) {
+        return true;
+      }
+
+      // 2. In development, allow localhost and any dynamic subdomains (e.g. clinic.localhost:3000)
+      if (!isProduction) {
+        if (/^https?:\/\/([a-z0-9-]+\.)*localhost(:[0-9]+)?$/i.test(origin)) {
+          return true;
+        }
+        if (/^https?:\/\/127\.0\.0\.1(:[0-9]+)?$/i.test(origin)) {
+          return true;
+        }
+      }
+
+      // 3. Dynamic Subdomains of base domain (e.g. https://*.docbook.health and https://docbook.health)
+      try {
+        const url = new URL(origin);
+        const hostname = url.hostname.toLowerCase();
+        if (
+          baseDomain &&
+          (hostname === baseDomain || hostname.endsWith(`.${baseDomain}`))
+        ) {
+          return true;
+        }
+      } catch {
+        return false;
+      }
+
+      return false;
+    };
+
     app.enableCors({
-      origin: true,
+      origin: (
+        origin: string | undefined,
+        callback: (err: Error | null, allow?: boolean) => void,
+      ) => {
+        // Allow requests with no origin (like mobile apps, curl, Postman, server-to-server)
+        if (!origin) {
+          return callback(null, true);
+        }
+
+        if (isOriginAllowed(origin)) {
+          return callback(null, true);
+        }
+
+        logger.warn(`CORS blocked for origin: ${origin}`);
+        return callback(new Error(`CORS blocked: Origin ${origin} not allowed`));
+      },
       credentials: true,
+      methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Accept', 'Authorization', 'Cookie'],
     });
 
     app.use(cookieParser());
@@ -52,9 +119,6 @@ async function bootstrap() {
 
     const document = SwaggerModule.createDocument(app, swaggerConfig);
     SwaggerModule.setup('api/docs', app, document);
-
-    const configService = app.get(ConfigService);
-    const port = configService.get<number>('port') ?? 3000;
 
     await app.listen(port);
 

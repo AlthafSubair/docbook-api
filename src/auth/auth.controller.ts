@@ -28,20 +28,31 @@ import {
   REFRESH_COOKIE_NAME,
   getRefreshCookieOptions,
   getClearRefreshCookieOptions,
+  type CookieConfig,
 } from './constants/cookie.constants.js';
 import type { JwtPayload } from './services/token.service.js';
 
 @ApiTags('Authentication')
 @Controller('auth')
 export class AuthController {
-  private readonly isProduction: boolean;
+  private readonly cookieConfig: CookieConfig;
 
   constructor(
     private readonly authService: AuthService,
     private readonly configService: ConfigService,
   ) {
-    this.isProduction =
+    const isProduction =
       this.configService.get<string>('NODE_ENV') === 'production';
+
+    this.cookieConfig = {
+      isProduction,
+      domain: this.configService.get<string>('cookie.domain'),
+      sameSite:
+        this.configService.get<'lax' | 'strict' | 'none'>('cookie.sameSite') ??
+        'lax',
+      secure:
+        this.configService.get<boolean>('cookie.secure') ?? isProduction,
+    };
   }
 
   @Post('send-otp')
@@ -97,7 +108,7 @@ export class AuthController {
     res.cookie(
       REFRESH_COOKIE_NAME,
       result.refreshToken,
-      getRefreshCookieOptions(this.isProduction),
+      getRefreshCookieOptions(this.cookieConfig),
     );
 
     return {
@@ -144,7 +155,7 @@ export class AuthController {
     res.cookie(
       REFRESH_COOKIE_NAME,
       result.refreshToken,
-      getRefreshCookieOptions(this.isProduction),
+      getRefreshCookieOptions(this.cookieConfig),
     );
 
     return {
@@ -180,7 +191,7 @@ export class AuthController {
 
     res.clearCookie(
       REFRESH_COOKIE_NAME,
-      getClearRefreshCookieOptions(this.isProduction),
+      getClearRefreshCookieOptions(this.cookieConfig),
     );
 
     return {
