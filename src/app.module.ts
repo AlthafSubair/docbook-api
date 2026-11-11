@@ -11,6 +11,7 @@ import { DatabaseConnectionLogger } from './database/database-connection-logger.
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { AuthModule } from './auth/auth.module.js';
+import { PatientsModule } from './patients/patients.module.js';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { AuthModule } from './auth/auth.module.js';
     }),
 
     AuthModule,
+    PatientsModule,
   ],
   controllers: [AppController],
   providers: [AppService, DatabaseConnectionLogger],
