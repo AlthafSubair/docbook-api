@@ -7,6 +7,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { PatientRelationship, PatientSex } from '../enums/patient.enums.js';
 
 @Entity({ name: 'patients' })
 @Index('idx_patients_phone', ['phone'])
@@ -32,6 +33,14 @@ export class Patient {
   fullName!: string;
 
   @Column({
+    name: 'relationship',
+    type: 'varchar',
+    length: 50,
+    default: PatientRelationship.SELF,
+  })
+  relationship!: PatientRelationship;
+
+  @Column({
     name: 'email',
     type: 'varchar',
     length: 255,
@@ -52,7 +61,7 @@ export class Patient {
     length: 30,
     nullable: true,
   })
-  sex!: string | null;
+  sex!: PatientSex | null;
 
   @CreateDateColumn({
     name: 'created_at',

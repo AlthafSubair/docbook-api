@@ -1,7 +1,7 @@
 import {
   IsDateString,
   IsEmail,
-  IsIn,
+  IsEnum,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -9,6 +9,7 @@ import {
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
+import { PatientRelationship, PatientSex } from '../enums/patient.enums.js';
 
 export class CreatePatientDto {
   @ApiProperty({
@@ -23,6 +24,23 @@ export class CreatePatientDto {
   @IsString({ message: 'Full name must be a string' })
   @MaxLength(150, { message: 'Full name cannot exceed 150 characters' })
   fullName!: string;
+
+  @ApiPropertyOptional({
+    example: PatientRelationship.SELF,
+    description:
+      'Relationship of the patient to the account holder',
+    enum: PatientRelationship,
+    enumName: 'PatientRelationship',
+    default: PatientRelationship.SELF,
+  })
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim().toLowerCase() : value,
+  )
+  @IsOptional()
+  @IsEnum(PatientRelationship, {
+    message: `Relationship must be one of: ${Object.values(PatientRelationship).join(', ')}`,
+  })
+  relationship?: PatientRelationship;
 
   @ApiPropertyOptional({
     example: 'rahul.sharma@example.com',
@@ -45,16 +63,17 @@ export class CreatePatientDto {
   dob?: string;
 
   @ApiPropertyOptional({
-    example: 'male',
-    description: 'Biological sex or gender of patient',
-    enum: ['male', 'female', 'other'],
+    example: PatientSex.MALE,
+    description: 'Biological sex of patient',
+    enum: PatientSex,
+    enumName: 'PatientSex',
   })
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? value.trim().toLowerCase() : value,
   )
   @IsOptional()
-  @IsIn(['male', 'female', 'other'], {
-    message: 'Sex must be either male, female, or other',
+  @IsEnum(PatientSex, {
+    message: `Sex must be one of: ${Object.values(PatientSex).join(', ')}`,
   })
-  sex?: string;
+  sex?: PatientSex;
 }

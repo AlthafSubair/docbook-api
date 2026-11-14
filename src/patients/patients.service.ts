@@ -7,6 +7,7 @@ import { Repository } from 'typeorm';
 import { Patient } from './entities/patient.entity.js';
 import { CreatePatientDto } from './dto/create-patient.dto.js';
 import { UpdatePatientDto } from './dto/update-patient.dto.js';
+import { PatientRelationship } from './enums/patient.enums.js';
 
 @Injectable()
 export class PatientsService {
@@ -49,6 +50,7 @@ export class PatientsService {
     const patient = this.patientRepository.create({
       phone,
       fullName: dto.fullName,
+      relationship: dto.relationship ?? PatientRelationship.SELF,
       email: dto.email ?? null,
       dob: dto.dob ?? null,
       sex: dto.sex ?? null,
@@ -68,6 +70,8 @@ export class PatientsService {
     const patient = await this.findOne(phone, patientId);
 
     if (dto.fullName !== undefined) patient.fullName = dto.fullName;
+    if (dto.relationship !== undefined)
+      patient.relationship = dto.relationship;
     if (dto.email !== undefined) patient.email = dto.email ?? null;
     if (dto.dob !== undefined) patient.dob = dto.dob ?? null;
     if (dto.sex !== undefined) patient.sex = dto.sex ?? null;
