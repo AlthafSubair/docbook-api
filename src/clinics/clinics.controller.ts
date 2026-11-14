@@ -10,6 +10,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import {
+  ApiHeader,
   ApiOperation,
   ApiParam,
   ApiResponse,
@@ -30,6 +31,15 @@ export class ClinicsController {
   @HttpCode(HttpStatus.CREATED)
   @UseGuards(AdminApiKeyGuard)
   @ApiSecurity('admin-api-key')
+  @ApiHeader({
+    name: 'x-admin-api-key',
+    description: 'Internal Platform Admin API Key',
+    required: true,
+    schema: {
+      type: 'string',
+      default: 'docbook_admin_super_secret_key_dev_2026',
+    },
+  })
   @ApiOperation({
     summary: 'Onboard a new clinic and its primary admin user (Internal / Platform)',
     description:
@@ -81,6 +91,15 @@ export class ClinicsController {
   @Get()
   @UseGuards(AdminApiKeyGuard)
   @ApiSecurity('admin-api-key')
+  @ApiHeader({
+    name: 'x-admin-api-key',
+    description: 'Internal Platform Admin API Key',
+    required: true,
+    schema: {
+      type: 'string',
+      default: 'docbook_admin_super_secret_key_dev_2026',
+    },
+  })
   @ApiOperation({
     summary: 'List all clinics (Platform Admin)',
     description:
@@ -101,6 +120,15 @@ export class ClinicsController {
   @Get(':id')
   @UseGuards(AdminApiKeyGuard)
   @ApiSecurity('admin-api-key')
+  @ApiHeader({
+    name: 'x-admin-api-key',
+    description: 'Internal Platform Admin API Key',
+    required: true,
+    schema: {
+      type: 'string',
+      default: 'docbook_admin_super_secret_key_dev_2026',
+    },
+  })
   @ApiOperation({
     summary: 'Get clinic details by ID (Platform Admin)',
     description:
@@ -122,6 +150,15 @@ export class ClinicsController {
   @Patch(':id')
   @UseGuards(AdminApiKeyGuard)
   @ApiSecurity('admin-api-key')
+  @ApiHeader({
+    name: 'x-admin-api-key',
+    description: 'Internal Platform Admin API Key',
+    required: true,
+    schema: {
+      type: 'string',
+      default: 'docbook_admin_super_secret_key_dev_2026',
+    },
+  })
   @ApiOperation({
     summary: 'Update clinic settings (Platform Admin)',
     description:
