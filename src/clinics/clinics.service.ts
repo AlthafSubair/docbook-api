@@ -83,6 +83,7 @@ export class ClinicsService {
       const admin = userRepo.create({
         clinicId: savedClinic.clinicId,
         fullName: dto.admin.fullName,
+        username: dto.admin.username.toLowerCase().trim(),
         role: UserRole.ADMIN,
         phone: dto.admin.phone ?? null,
         email: dto.admin.email.toLowerCase(),
@@ -110,6 +111,7 @@ export class ClinicsService {
         admin: {
           userId: savedAdmin.userId,
           fullName: savedAdmin.fullName,
+          username: savedAdmin.username,
           email: savedAdmin.email,
           phone: savedAdmin.phone,
           role: savedAdmin.role,

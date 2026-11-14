@@ -92,6 +92,7 @@ describe('ClinicsService', () => {
           },
           admin: {
             fullName: 'Admin Name',
+            username: 'admin.name',
             email: 'admin@clinic.com',
             password: 'Password123!',
           },
@@ -114,6 +115,7 @@ describe('ClinicsService', () => {
       const mockSavedAdmin = {
         userId: '1',
         fullName: 'Admin User',
+        username: 'admin.user',
         email: 'admin@test.com',
         phone: '+919876543211',
         role: UserRole.ADMIN,
@@ -149,6 +151,7 @@ describe('ClinicsService', () => {
         },
         admin: {
           fullName: 'Admin User',
+          username: 'admin.user',
           email: 'admin@test.com',
           phone: '+919876543211',
           password: 'Password123!',
@@ -157,6 +160,7 @@ describe('ClinicsService', () => {
 
       expect(result.message).toContain('success');
       expect(result.clinic.clinicName).toBe('Test Clinic');
+      expect(result.admin.username).toBe('admin.user');
       expect(result.admin.email).toBe('admin@test.com');
       expect(result.admin.role).toBe(UserRole.ADMIN);
     });

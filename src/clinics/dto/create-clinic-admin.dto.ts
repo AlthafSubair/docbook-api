@@ -27,6 +27,26 @@ export class CreateClinicAdminDto {
   fullName!: string;
 
   @ApiProperty({
+    example: 'sarah.thomas',
+    description:
+      'Unique login username for the clinic administrator within this clinic',
+    minLength: 3,
+    maxLength: 50,
+  })
+  @IsString()
+  @IsNotEmpty({ message: 'Username is required' })
+  @MinLength(3, { message: 'Username must be at least 3 characters long' })
+  @MaxLength(50, { message: 'Username cannot exceed 50 characters' })
+  @Matches(/^[a-z0-9._-]+$/, {
+    message:
+      'Username must contain only lowercase letters, numbers, dots, hyphens, or underscores',
+  })
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim().toLowerCase() : value,
+  )
+  username!: string;
+
+  @ApiProperty({
     example: 'sarah.admin@citycare.com',
     description: 'Login email for the clinic administrator',
     maxLength: 255,

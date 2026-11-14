@@ -35,6 +35,13 @@ export class User {
   fullName!: string;
 
   @Column({
+    name: 'username',
+    type: 'varchar',
+    length: 50,
+  })
+  username!: string;
+
+  @Column({
     name: 'role',
     type: 'enum',
     enum: UserRole,
