@@ -2,7 +2,6 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { ConflictException, ForbiddenException } from '@nestjs/common';
 import { vi, describe, beforeEach, it, expect } from 'vitest';
-import bcrypt from 'bcryptjs';
 import { ClinicUsersService } from './clinic-users.service.js';
 import { User } from '../users/entities/user.entity.js';
 import { UserRole } from '../users/enums/user.enums.js';
@@ -29,6 +28,15 @@ describe('ClinicUsersService', () => {
     userType: 'clinic',
   };
 
+  const mockQueryBuilder = {
+    where: vi.fn().mockReturnThis(),
+    andWhere: vi.fn().mockReturnThis(),
+    orderBy: vi.fn().mockReturnThis(),
+    skip: vi.fn().mockReturnThis(),
+    take: vi.fn().mockReturnThis(),
+    getManyAndCount: vi.fn(),
+  };
+
   const mockUserRepository = {
     findOne: vi.fn(),
     create: vi.fn().mockImplementation((dto) => ({
@@ -37,6 +45,7 @@ describe('ClinicUsersService', () => {
       ...dto,
     })),
     save: vi.fn().mockImplementation((user) => Promise.resolve(user)),
+    createQueryBuilder: vi.fn().mockReturnValue(mockQueryBuilder),
   };
 
   beforeEach(async () => {
@@ -109,13 +118,101 @@ describe('ClinicUsersService', () => {
 
     it('should throw ConflictException if email is already registered globally', async () => {
       mockUserRepository.findOne
-        .mockResolvedValueOnce(null) // username check passes
-        .mockResolvedValueOnce({ userId: '98', email: 'john.doe@citycare.com' }); // email check conflicts
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({ userId: '98', email: 'john.doe@citycare.com' });
 
       await expect(
         service.create(mockAdminUser, validDto),
       ).rejects.toThrow(ConflictException);
       expect(mockUserRepository.save).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('findAll', () => {
+    const mockUsersList = [
+      {
+        userId: '1',
+        clinicId: '10',
+        fullName: 'Dr. Sarah Thomas',
+        username: 'sarah',
+        email: 'sarah@citycare.com',
+        phone: '+919876543210',
+        role: UserRole.ADMIN,
+        isActive: true,
+        isEmailVerified: true,
+        isPhoneVerified: true,
+        passwordHash: 'secret_hash',
+        createdAt: new Date(),
+      },
+      {
+        userId: '2',
+        clinicId: '10',
+        fullName: 'Dr. John Doe',
+        username: 'john.doe',
+        email: 'john.doe@citycare.com',
+        phone: null,
+        role: UserRole.DOCTOR,
+        isActive: true,
+        isEmailVerified: false,
+        isPhoneVerified: false,
+        passwordHash: 'secret_hash_2',
+        createdAt: new Date(),
+      },
+    ];
+
+    it('should fetch paginated users scoped strictly to the caller clinic', async () => {
+      mockQueryBuilder.getManyAndCount.mockResolvedValueOnce([mockUsersList, 2]);
+
+      const result = await service.findAll(mockAdminUser, { page: 1, limit: 20 });
+
+      expect(mockUserRepository.createQueryBuilder).toHaveBeenCalledWith('user');
+      expect(mockQueryBuilder.where).toHaveBeenCalledWith('user.clinicId = :clinicId', {
+        clinicId: '10',
+      });
+      expect(mockQueryBuilder.skip).toHaveBeenCalledWith(0);
+      expect(mockQueryBuilder.take).toHaveBeenCalledWith(20);
+
+      expect(result.data).toHaveLength(2);
+      expect(result.meta).toEqual({
+        total: 2,
+        page: 1,
+        limit: 20,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      });
+      // Ensure passwordHash is never leaked
+      expect((result.data[0] as any).passwordHash).toBeUndefined();
+      expect((result.data[1] as any).passwordHash).toBeUndefined();
+    });
+
+    it('should apply role, isActive, and search filters when provided', async () => {
+      mockQueryBuilder.getManyAndCount.mockResolvedValueOnce([[mockUsersList[1]], 1]);
+
+      const result = await service.findAll(mockDoctorUser, {
+        role: UserRole.DOCTOR,
+        isActive: true,
+        search: 'john',
+        page: 2,
+        limit: 10,
+      });
+
+      expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith('user.role = :role', {
+        role: UserRole.DOCTOR,
+      });
+      expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith('user.isActive = :isActive', {
+        isActive: true,
+      });
+      expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(
+        expect.stringContaining('LIKE :search'),
+        expect.objectContaining({ search: '%john%' }),
+      );
+      expect(mockQueryBuilder.skip).toHaveBeenCalledWith(10);
+      expect(mockQueryBuilder.take).toHaveBeenCalledWith(10);
+
+      expect(result.data).toHaveLength(1);
+      expect(result.meta.page).toBe(2);
+      expect(result.meta.totalPages).toBe(1);
     });
   });
 });

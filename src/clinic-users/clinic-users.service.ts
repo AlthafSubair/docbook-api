@@ -9,6 +9,9 @@ import bcrypt from 'bcryptjs';
 import { User } from '../users/entities/user.entity.js';
 import { UserRole } from '../users/enums/user.enums.js';
 import { CreateClinicUserDto } from './dto/create-clinic-user.dto.js';
+import { QueryClinicUsersDto } from './dto/query-clinic-users.dto.js';
+import { paginateQueryBuilder } from '../common/utils/pagination.util.js';
+import type { PaginatedResponse } from '../common/interfaces/paginated-response.interface.js';
 import type { ClinicJwtPayload } from '../auth/services/clinic-token.service.js';
 
 export interface SafeClinicUserResponse {
@@ -110,5 +113,52 @@ export class ClinicUsersService {
       isPhoneVerified: savedUser.isPhoneVerified,
       createdAt: savedUser.createdAt,
     };
+  }
+
+  /**
+   * Fetches paginated staff members belonging strictly to the caller's clinic.
+   * Utilizes the global paginateQueryBuilder utility for consistent pagination metadata.
+   */
+  async findAll(
+    currentUser: ClinicJwtPayload,
+    query: QueryClinicUsersDto,
+  ): Promise<PaginatedResponse<SafeClinicUserResponse>> {
+    const qb = this.userRepository
+      .createQueryBuilder('user')
+      .where('user.clinicId = :clinicId', { clinicId: currentUser.clinicId });
+
+    if (query.role) {
+      qb.andWhere('user.role = :role', { role: query.role });
+    }
+
+    if (query.isActive !== undefined) {
+      qb.andWhere('user.isActive = :isActive', { isActive: query.isActive });
+    }
+
+    if (query.search) {
+      qb.andWhere(
+        '(LOWER(user.fullName) LIKE :search OR LOWER(user.username) LIKE :search OR LOWER(user.email) LIKE :search OR user.phone LIKE :rawSearch)',
+        {
+          search: `%${query.search.toLowerCase()}%`,
+          rawSearch: `%${query.search}%`,
+        },
+      );
+    }
+
+    qb.orderBy('user.createdAt', 'DESC');
+
+    return paginateQueryBuilder(qb, query, (user) => ({
+      userId: user.userId,
+      clinicId: user.clinicId,
+      fullName: user.fullName,
+      username: user.username,
+      email: user.email,
+      phone: user.phone,
+      role: user.role,
+      isActive: user.isActive,
+      isEmailVerified: user.isEmailVerified,
+      isPhoneVerified: user.isPhoneVerified,
+      createdAt: user.createdAt,
+    }));
   }
 }
