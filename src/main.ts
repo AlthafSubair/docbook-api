@@ -88,6 +88,7 @@ async function bootstrap() {
         'Authorization',
         'Cookie',
         'x-admin-api-key',
+        'x-clinic-slug',
       ],
     });
 
@@ -120,6 +121,17 @@ async function bootstrap() {
           in: 'header',
         },
         'JWT-auth',
+      )
+      .addBearerAuth(
+        {
+          type: 'http',
+          scheme: 'bearer',
+          bearerFormat: 'JWT',
+          name: 'JWT Clinic Staff',
+          description: 'Enter your clinic staff JWT access token',
+          in: 'header',
+        },
+        'JWT-clinic-auth',
       )
       .addApiKey(
         {

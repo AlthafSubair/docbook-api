@@ -1,6 +1,7 @@
 import type { CookieOptions } from 'express';
 
 export const REFRESH_COOKIE_NAME = 'refreshToken';
+export const CLINIC_REFRESH_COOKIE_NAME = 'clinicRefreshToken';
 
 export interface CookieConfig {
   isProduction: boolean;
@@ -75,4 +76,27 @@ export function getClearRefreshCookieOptions(config: boolean | CookieConfig): Co
   }
 
   return options;
+}
+
+/**
+ * Returns security-hardened options for the HttpOnly Clinic Refresh Token cookie.
+ * - path: '/api/v1/auth/clinic' scopes the cookie strictly to clinic auth endpoints.
+ */
+export function getClinicRefreshCookieOptions(config: boolean | CookieConfig): CookieOptions {
+  const base = getRefreshCookieOptions(config);
+  return {
+    ...base,
+    path: '/api/v1/auth/clinic',
+  };
+}
+
+/**
+ * Returns matching options to clear the HttpOnly Clinic Refresh Token cookie on logout.
+ */
+export function getClearClinicRefreshCookieOptions(config: boolean | CookieConfig): CookieOptions {
+  const base = getClearRefreshCookieOptions(config);
+  return {
+    ...base,
+    path: '/api/v1/auth/clinic',
+  };
 }

@@ -5,11 +5,6 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { PatientRefreshToken } from '../entities/patient-refresh-token.entity.js';
-import { hashWithSecret } from '../../common/utils/crypto.util.js';
-import { calculateExpiryDate } from '../../common/utils/date.util.js';
 
 export interface TokenPair {
   accessToken: string;
@@ -22,6 +17,13 @@ export interface JwtPayload {
   role: 'patient';
 }
 
+export interface PatientRefreshJwtPayload {
+  sub: string;
+  phone: string;
+  role: 'patient';
+  tokenType: 'patient_refresh';
+}
+
 @Injectable()
 export class TokenService {
   private readonly accessSecret: string;
@@ -32,8 +34,6 @@ export class TokenService {
   constructor(
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
-    @InjectRepository(PatientRefreshToken)
-    private readonly refreshTokenRepository: Repository<PatientRefreshToken>,
   ) {
     this.accessSecret =
       this.configService.get<string>('jwt.accessSecret') ?? '';
@@ -52,39 +52,35 @@ export class TokenService {
   }
 
   /**
-   * Generates both Access Token (15m) and Refresh Token (30d),
-   * securely hashes the refresh token, stores it in PostgreSQL,
-   * and returns the plain token pair to the client.
+   * Pure Stateless JWT Generation:
+   * Generates both Access Token (15m) and Refresh Token (30d) for a patient.
+   * Both tokens are signed cryptographically and returned to be delivered via HttpOnly cookies / response.
+   * No tokens are persisted in the database.
    */
   async generateTokens(phone: string): Promise<TokenPair> {
-    const payload: JwtPayload = {
+    const accessPayload: JwtPayload = {
       sub: phone,
       phone,
       role: 'patient',
     };
 
+    const refreshPayload: PatientRefreshJwtPayload = {
+      sub: phone,
+      phone,
+      role: 'patient',
+      tokenType: 'patient_refresh',
+    };
+
     const [accessToken, refreshToken] = await Promise.all([
-      this.jwtService.signAsync(payload, {
+      this.jwtService.signAsync(accessPayload, {
         secret: this.accessSecret,
         expiresIn: this.accessExpiration as any,
       }),
-      this.jwtService.signAsync(payload, {
+      this.jwtService.signAsync(refreshPayload, {
         secret: this.refreshSecret,
         expiresIn: this.refreshExpiration as any,
       }),
     ]);
-
-    const tokenHash = hashWithSecret(refreshToken, this.refreshSecret);
-    const expiresAt = calculateExpiryDate(this.refreshExpiration);
-
-    const tokenRecord = this.refreshTokenRepository.create({
-      phone,
-      tokenHash,
-      expiresAt,
-      isRevoked: false,
-    });
-
-    await this.refreshTokenRepository.save(tokenRecord);
 
     return {
       accessToken,
@@ -93,71 +89,41 @@ export class TokenService {
   }
 
   /**
-   * Rotates a refresh token:
-   * 1. Cryptographically verifies JWT signature.
-   * 2. Checks token hash against database.
-   * 3. Detects reuse attacks: if a revoked token is presented, revokes ALL sessions for that phone.
-   * 4. Revokes the old token and issues a brand-new access + refresh token pair.
+   * Pure Stateless Refresh Token Verification & Rotation:
+   * 1. Cryptographically verifies JWT signature and expiry.
+   * 2. Confirms role and tokenType match expected patient refresh payload.
+   * 3. Issues and returns a brand-new token pair.
    */
   async rotateRefreshToken(rawRefreshToken: string): Promise<TokenPair> {
-    let payload: JwtPayload;
+    let payload: PatientRefreshJwtPayload;
     try {
-      payload = await this.jwtService.verifyAsync<JwtPayload>(rawRefreshToken, {
-        secret: this.refreshSecret,
-      });
+      payload = await this.jwtService.verifyAsync<PatientRefreshJwtPayload>(
+        rawRefreshToken,
+        {
+          secret: this.refreshSecret,
+        },
+      );
     } catch {
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
 
-    const tokenHash = hashWithSecret(rawRefreshToken, this.refreshSecret);
-
-    const record = await this.refreshTokenRepository.findOne({
-      where: { tokenHash },
-    });
-
-    if (!record) {
-      throw new UnauthorizedException('Invalid refresh token');
+    if (
+      !payload ||
+      payload.role !== 'patient' ||
+      payload.tokenType !== 'patient_refresh' ||
+      !payload.phone
+    ) {
+      throw new UnauthorizedException('Invalid refresh token type');
     }
 
-    // Reuse detection: If token was already revoked, someone is trying to reuse an old or stolen token!
-    if (record.isRevoked) {
-      // Invalidate all tokens for this phone as a security precaution
-      await this.refreshTokenRepository.update(
-        { phone: payload.phone, isRevoked: false },
-        { isRevoked: true },
-      );
-      throw new UnauthorizedException(
-        'Compromised session detected. All sessions revoked. Please log in again.',
-      );
-    }
-
-    if (new Date() > record.expiresAt) {
-      throw new UnauthorizedException(
-        'Refresh token has expired. Please log in again.',
-      );
-    }
-
-    // Revoke the old token (single-use rotation)
-    record.isRevoked = true;
-    await this.refreshTokenRepository.save(record);
-
-    // Issue fresh token pair
-    return this.generateTokens(record.phone);
+    return this.generateTokens(payload.phone);
   }
 
   /**
-   * Revokes a refresh token (used on Logout).
-   * Safe and idempotent: if the token is already revoked or does not exist, it completes safely.
+   * Revokes a refresh token on Logout.
+   * In a pure stateless JWT architecture, the session is invalidated by clearing the client HttpOnly cookie.
    */
-  async revokeRefreshToken(rawRefreshToken: string): Promise<void> {
-    const tokenHash = hashWithSecret(rawRefreshToken, this.refreshSecret);
-    const record = await this.refreshTokenRepository.findOne({
-      where: { tokenHash },
-    });
-
-    if (record && !record.isRevoked) {
-      record.isRevoked = true;
-      await this.refreshTokenRepository.save(record);
-    }
+  async revokeRefreshToken(_rawRefreshToken: string): Promise<void> {
+    // Pure stateless JWT: invalidated by clearing the HttpOnly cookie
   }
 }
