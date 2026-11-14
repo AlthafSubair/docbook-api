@@ -63,4 +63,8 @@ export const envValidationSchema = Joi.object({
 
   JWT_REFRESH_EXPIRATION: Joi.string()
     .default('7d'),
+
+  ADMIN_API_KEY: Joi.string()
+    .min(16)
+    .default('docbook_admin_super_secret_key_dev_2026'),
 });

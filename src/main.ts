@@ -82,7 +82,13 @@ async function bootstrap() {
       },
       credentials: true,
       methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Accept', 'Authorization', 'Cookie'],
+      allowedHeaders: [
+        'Content-Type',
+        'Accept',
+        'Authorization',
+        'Cookie',
+        'x-admin-api-key',
+      ],
     });
 
     app.use(cookieParser());
@@ -114,6 +120,15 @@ async function bootstrap() {
           in: 'header',
         },
         'JWT-auth',
+      )
+      .addApiKey(
+        {
+          type: 'apiKey',
+          name: 'x-admin-api-key',
+          in: 'header',
+          description: 'Internal Platform Admin API Key for onboarding clinics',
+        },
+        'admin-api-key',
       )
       .build();
 

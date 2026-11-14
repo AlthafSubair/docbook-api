@@ -37,5 +37,8 @@ export default () => {
       refreshSecret: process.env.JWT_REFRESH_SECRET as string,
       refreshExpiration: process.env.JWT_REFRESH_EXPIRATION ?? '7d',
     },
+    adminApiKey:
+      process.env.ADMIN_API_KEY ??
+      'docbook_admin_super_secret_key_dev_2026',
   };
 };
