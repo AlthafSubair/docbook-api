@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -181,6 +182,49 @@ export class ClinicUsersController {
     @Body() dto: UpdateClinicUserDto,
   ): Promise<SafeClinicUserResponse> {
     return this.clinicUsersService.update(currentUser, id, dto);
+  }
+
+  @Delete(':id')
+  @ApiOperation({
+    summary: 'Deactivate / remove a clinic staff member',
+    description:
+      'Soft-deletes and marks the staff account inactive. Only accessible by clinic administrators. Admins cannot delete their own account.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Unique staff user ID',
+    example: '2',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Staff member deactivated successfully',
+    schema: {
+      example: {
+        message: "Staff member 'Dr. Jane Doe' (jane.doe) deactivated successfully.",
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad request: Administrators cannot delete their own account',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Missing, invalid, or expired clinic access token',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden: Only clinic administrators can remove staff members',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Staff member not found in this clinic',
+  })
+  async remove(
+    @CurrentClinicUser() currentUser: ClinicJwtPayload,
+    @Param('id') id: string,
+  ): Promise<{ message: string }> {
+    return this.clinicUsersService.remove(currentUser, id);
   }
 
   @Post()

@@ -215,4 +215,50 @@ export class ClinicUsersService {
     const updated = await this.userRepository.save(user);
     return toSafeClinicUserResponse(updated);
   }
+
+  /**
+   * Deactivates and soft-deletes a clinic staff member.
+   * Only clinic administrators can delete staff. Admins cannot delete themselves.
+   */
+  async remove(
+    currentUser: ClinicJwtPayload,
+    userId: string,
+  ): Promise<{ message: string }> {
+    if (currentUser.role !== UserRole.ADMIN) {
+      throw new ForbiddenException(
+        'Only clinic administrators are authorized to remove staff members.',
+      );
+    }
+
+    if (currentUser.sub === userId) {
+      throw new BadRequestException(
+        'Administrators cannot delete their own account.',
+      );
+    }
+
+    const user = await this.userRepository.findOne({
+      where: {
+        userId,
+        clinicId: currentUser.clinicId,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException(
+        `Staff member with ID '${userId}' not found in this clinic.`,
+      );
+    }
+
+    // Mark inactive and soft-delete
+    user.isActive = false;
+    await this.userRepository.save(user);
+    await this.userRepository.softDelete({
+      userId,
+      clinicId: currentUser.clinicId,
+    });
+
+    return {
+      message: `Staff member '${user.fullName}' (${user.username}) deactivated successfully.`,
+    };
+  }
 }

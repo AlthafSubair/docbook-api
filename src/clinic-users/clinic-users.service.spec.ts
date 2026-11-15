@@ -50,6 +50,7 @@ describe('ClinicUsersService', () => {
       ...dto,
     })),
     save: vi.fn().mockImplementation((user) => Promise.resolve(user)),
+    softDelete: vi.fn().mockResolvedValue({ affected: 1 }),
     createQueryBuilder: vi.fn().mockReturnValue(mockQueryBuilder),
   };
 
@@ -332,6 +333,51 @@ describe('ClinicUsersService', () => {
       await expect(
         service.update(mockAdminUser, '1', { role: UserRole.RECEPTIONIST }),
       ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('remove', () => {
+    const staffToDelete = {
+      userId: '7',
+      clinicId: '10',
+      fullName: 'Dr. Gregory House',
+      username: 'house',
+      isActive: true,
+    };
+
+    it('should successfully soft-delete staff member when called by Admin', async () => {
+      mockUserRepository.findOne.mockResolvedValueOnce({ ...staffToDelete });
+
+      const result = await service.remove(mockAdminUser, '7');
+
+      expect(mockUserRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: '7', isActive: false }),
+      );
+      expect(mockUserRepository.softDelete).toHaveBeenCalledWith({
+        userId: '7',
+        clinicId: '10',
+      });
+      expect(result.message).toContain('deactivated successfully');
+    });
+
+    it('should throw ForbiddenException if non-admin attempts removal', async () => {
+      await expect(service.remove(mockDoctorUser, '7')).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
+    it('should throw BadRequestException if admin attempts to delete their own account', async () => {
+      await expect(service.remove(mockAdminUser, '1')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should throw NotFoundException if staff member not found in clinic', async () => {
+      mockUserRepository.findOne.mockResolvedValueOnce(null);
+
+      await expect(service.remove(mockAdminUser, '999')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 });
