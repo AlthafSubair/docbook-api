@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
+import { ForbiddenException } from '@nestjs/common';
 import { vi, describe, beforeEach, it, expect } from 'vitest';
 import { ClinicsController } from './clinics.controller.js';
 import { ClinicsService } from './clinics.service.js';
@@ -41,6 +42,15 @@ describe('ClinicsController', () => {
     userType: 'clinic',
   };
 
+  const mockAdminUser: ClinicJwtPayload = {
+    sub: '2',
+    clinicId: '10',
+    email: 'admin@citycare.com',
+    username: 'admin.smith',
+    role: UserRole.ADMIN,
+    userType: 'clinic',
+  };
+
   beforeEach(async () => {
     vi.clearAllMocks();
 
@@ -75,6 +85,47 @@ describe('ClinicsController', () => {
     });
   });
 
+  describe('updateMe', () => {
+    it('should allow Clinic Admin to update own clinic settings', async () => {
+      const updateDto = {
+        clinicPhone: '+919876543299',
+        address: '456 Healthcare Blvd',
+      };
+      const updatedClinic = { ...mockClinic, ...updateDto };
+      mockClinicsService.update.mockResolvedValueOnce(updatedClinic);
+
+      const result = await controller.updateMe(mockAdminUser, updateDto);
+
+      expect(clinicsService.update).toHaveBeenCalledWith('10', updateDto);
+      expect(result).toEqual(updatedClinic);
+    });
+
+    it('should throw ForbiddenException if caller is not a clinic admin', async () => {
+      const updateDto = { clinicPhone: '+919876543299' };
+
+      await expect(
+        controller.updateMe(mockStaffUser, updateDto),
+      ).rejects.toThrow(ForbiddenException);
+
+      expect(clinicsService.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('onboard', () => {
+    it('should onboard a new clinic and admin', async () => {
+      const onboardDto = {
+        clinic: { clinicName: 'New Clinic', clinicPhone: '+919876543210' },
+        admin: { fullName: 'Admin', username: 'admin', email: 'a@c.com', password: 'P1!' },
+      };
+      mockClinicsService.onboard.mockResolvedValueOnce({ clinic: mockClinic });
+
+      const result = await controller.onboard(onboardDto as any);
+
+      expect(clinicsService.onboard).toHaveBeenCalledWith(onboardDto);
+      expect(result).toEqual({ clinic: mockClinic });
+    });
+  });
+
   describe('getBySlug', () => {
     it('should return clinic profile by slug', async () => {
       mockClinicsService.findBySlug.mockResolvedValueOnce(mockClinic);
@@ -105,6 +156,19 @@ describe('ClinicsController', () => {
 
       expect(clinicsService.findOne).toHaveBeenCalledWith('10');
       expect(result).toEqual(mockClinic);
+    });
+  });
+
+  describe('update (Platform Admin)', () => {
+    it('should update clinic by ID', async () => {
+      const updateDto = { clinicPhone: '+919876543299' };
+      const updatedClinic = { ...mockClinic, ...updateDto };
+      mockClinicsService.update.mockResolvedValueOnce(updatedClinic);
+
+      const result = await controller.update('10', updateDto);
+
+      expect(clinicsService.update).toHaveBeenCalledWith('10', updateDto);
+      expect(result).toEqual(updatedClinic);
     });
   });
 });

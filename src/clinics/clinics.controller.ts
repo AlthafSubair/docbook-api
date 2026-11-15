@@ -118,6 +118,47 @@ export class ClinicsController {
     return this.clinicsService.findOne(currentUser.clinicId);
   }
 
+  @Patch('me')
+  @UseGuards(ClinicJwtAuthGuard)
+  @ApiBearerAuth('JWT-clinic-auth')
+  @ApiOperation({
+    summary: 'Update current clinic settings (Clinic Admin only)',
+    description:
+      'Allows a clinic administrator to update clinic operational details such as phone, email, address, or timezone. Strictly scoped to the caller clinic organization.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Updated clinic details',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Validation failed on input payload',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Missing, invalid, or expired clinic access token',
+  })
+  @ApiResponse({
+    status: 403,
+    description:
+      'Access denied: Only clinic administrators are authorized to update clinic settings.',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Clinic not found',
+  })
+  async updateMe(
+    @CurrentClinicUser() currentUser: ClinicJwtPayload,
+    @Body() dto: UpdateClinicDto,
+  ) {
+    if (currentUser.role !== UserRole.ADMIN) {
+      throw new ForbiddenException(
+        'Access denied: Only clinic administrators are authorized to update clinic settings.',
+      );
+    }
+    return this.clinicsService.update(currentUser.clinicId, dto);
+  }
+
   @Get()
   @UseGuards(AdminApiKeyGuard)
   @ApiSecurity('admin-api-key')
