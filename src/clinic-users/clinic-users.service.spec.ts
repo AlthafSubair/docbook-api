@@ -380,4 +380,48 @@ describe('ClinicUsersService', () => {
       );
     });
   });
+
+  describe('adminResetPassword', () => {
+    const staffUser = {
+      userId: '7',
+      clinicId: '10',
+      fullName: 'Dr. Gregory House',
+      username: 'house',
+      passwordHash: 'old_hash',
+    };
+
+    it('should successfully reset staff password when called by Admin', async () => {
+      mockUserRepository.findOne.mockResolvedValueOnce({ ...staffUser });
+
+      const result = await service.adminResetPassword(mockAdminUser, '7', {
+        newPassword: 'BrandNewPassword123!',
+      });
+
+      expect(mockUserRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: '7',
+          passwordHash: expect.any(String),
+        }),
+      );
+      expect(result.message).toContain('reset successfully');
+    });
+
+    it('should throw ForbiddenException if non-admin attempts password reset', async () => {
+      await expect(
+        service.adminResetPassword(mockDoctorUser, '7', {
+          newPassword: 'BrandNewPassword123!',
+        }),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should throw NotFoundException if staff member not found in clinic', async () => {
+      mockUserRepository.findOne.mockResolvedValueOnce(null);
+
+      await expect(
+        service.adminResetPassword(mockAdminUser, '999', {
+          newPassword: 'BrandNewPassword123!',
+        }),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
 });

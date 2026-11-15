@@ -13,6 +13,7 @@ import { UserRole } from '../users/enums/user.enums.js';
 import { CreateClinicUserDto } from './dto/create-clinic-user.dto.js';
 import { UpdateClinicUserDto } from './dto/update-clinic-user.dto.js';
 import { QueryClinicUsersDto } from './dto/query-clinic-users.dto.js';
+import { AdminResetPasswordDto } from './dto/admin-reset-password.dto.js';
 import { paginateQueryBuilder } from '../common/utils/pagination.util.js';
 import {
   toSafeClinicUserResponse,
@@ -259,6 +260,42 @@ export class ClinicUsersService {
 
     return {
       message: `Staff member '${user.fullName}' (${user.username}) deactivated successfully.`,
+    };
+  }
+
+  /**
+   * Resets a clinic staff member's password.
+   * Only accessible by clinic administrators.
+   */
+  async adminResetPassword(
+    currentUser: ClinicJwtPayload,
+    userId: string,
+    dto: AdminResetPasswordDto,
+  ): Promise<{ message: string }> {
+    if (currentUser.role !== UserRole.ADMIN) {
+      throw new ForbiddenException(
+        'Only clinic administrators are authorized to reset staff passwords.',
+      );
+    }
+
+    const user = await this.userRepository.findOne({
+      where: {
+        userId,
+        clinicId: currentUser.clinicId,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException(
+        `Staff member with ID '${userId}' not found in this clinic.`,
+      );
+    }
+
+    user.passwordHash = await bcrypt.hash(dto.newPassword, 10);
+    await this.userRepository.save(user);
+
+    return {
+      message: `Password for '${user.fullName}' (${user.username}) reset successfully.`,
     };
   }
 }

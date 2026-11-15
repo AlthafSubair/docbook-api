@@ -25,6 +25,7 @@ import {
 import { CreateClinicUserDto } from './dto/create-clinic-user.dto.js';
 import { UpdateClinicUserDto } from './dto/update-clinic-user.dto.js';
 import { QueryClinicUsersDto } from './dto/query-clinic-users.dto.js';
+import { AdminResetPasswordDto } from './dto/admin-reset-password.dto.js';
 import { ClinicJwtAuthGuard } from '../auth/guards/clinic-jwt-auth.guard.js';
 import { CurrentClinicUser } from '../auth/decorators/current-clinic-user.decorator.js';
 import type { ClinicJwtPayload } from '../auth/services/clinic-token.service.js';
@@ -225,6 +226,50 @@ export class ClinicUsersController {
     @Param('id') id: string,
   ): Promise<{ message: string }> {
     return this.clinicUsersService.remove(currentUser, id);
+  }
+
+  @Patch(':id/reset-password')
+  @ApiOperation({
+    summary: 'Reset a staff member password (Admin only)',
+    description:
+      'Allows a clinic administrator to reset the password of any staff member within their clinic.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Unique staff user ID',
+    example: '2',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Staff member password reset successfully',
+    schema: {
+      example: {
+        message: "Password for 'Dr. Jane Doe' (jane.doe) reset successfully.",
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Validation failed (e.g. password shorter than 8 characters)',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Missing, invalid, or expired clinic access token',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden: Only clinic administrators can reset staff passwords',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Staff member not found in this clinic',
+  })
+  async adminResetPassword(
+    @CurrentClinicUser() currentUser: ClinicJwtPayload,
+    @Param('id') id: string,
+    @Body() dto: AdminResetPasswordDto,
+  ): Promise<{ message: string }> {
+    return this.clinicUsersService.adminResetPassword(currentUser, id, dto);
   }
 
   @Post()
