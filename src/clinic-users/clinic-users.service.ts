@@ -14,6 +14,7 @@ import { CreateClinicUserDto } from './dto/create-clinic-user.dto.js';
 import { UpdateClinicUserDto } from './dto/update-clinic-user.dto.js';
 import { QueryClinicUsersDto } from './dto/query-clinic-users.dto.js';
 import { AdminResetPasswordDto } from './dto/admin-reset-password.dto.js';
+import { ChangePasswordDto } from './dto/change-password.dto.js';
 import { paginateQueryBuilder } from '../common/utils/pagination.util.js';
 import {
   toSafeClinicUserResponse,
@@ -296,6 +297,47 @@ export class ClinicUsersService {
 
     return {
       message: `Password for '${user.fullName}' (${user.username}) reset successfully.`,
+    };
+  }
+
+  /**
+   * Allows an authenticated staff member to update their own password.
+   */
+  async changePassword(
+    currentUser: ClinicJwtPayload,
+    dto: ChangePasswordDto,
+  ): Promise<{ message: string }> {
+    const user = await this.userRepository.findOne({
+      where: {
+        userId: currentUser.sub,
+        clinicId: currentUser.clinicId,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User profile not found.');
+    }
+
+    const isCurrentValid = await bcrypt.compare(
+      dto.currentPassword,
+      user.passwordHash,
+    );
+
+    if (!isCurrentValid) {
+      throw new BadRequestException('Current password does not match.');
+    }
+
+    if (dto.currentPassword === dto.newPassword) {
+      throw new BadRequestException(
+        'New password must be different from current password.',
+      );
+    }
+
+    user.passwordHash = await bcrypt.hash(dto.newPassword, 10);
+    await this.userRepository.save(user);
+
+    return {
+      message: 'Your password has been changed successfully.',
     };
   }
 }

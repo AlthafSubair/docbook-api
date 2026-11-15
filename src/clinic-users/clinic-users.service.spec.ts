@@ -7,6 +7,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { vi, describe, beforeEach, it, expect } from 'vitest';
+import bcrypt from 'bcryptjs';
 import { ClinicUsersService } from './clinic-users.service.js';
 import { User } from '../users/entities/user.entity.js';
 import { UserRole } from '../users/enums/user.enums.js';
@@ -420,6 +421,73 @@ describe('ClinicUsersService', () => {
       await expect(
         service.adminResetPassword(mockAdminUser, '999', {
           newPassword: 'BrandNewPassword123!',
+        }),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('changePassword', () => {
+    it('should successfully update own password when current password matches', async () => {
+      const hashedOld = await bcrypt.hash('CurrentSecret123!', 10);
+      mockUserRepository.findOne.mockResolvedValueOnce({
+        userId: '2',
+        clinicId: '10',
+        passwordHash: hashedOld,
+      });
+
+      const result = await service.changePassword(mockDoctorUser, {
+        currentPassword: 'CurrentSecret123!',
+        newPassword: 'NewSecretPass456!',
+      });
+
+      expect(mockUserRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: '2',
+          passwordHash: expect.any(String),
+        }),
+      );
+      expect(result.message).toContain('changed successfully');
+    });
+
+    it('should throw BadRequestException if current password does not match', async () => {
+      const hashedOld = await bcrypt.hash('ActualSecret123!', 10);
+      mockUserRepository.findOne.mockResolvedValueOnce({
+        userId: '2',
+        clinicId: '10',
+        passwordHash: hashedOld,
+      });
+
+      await expect(
+        service.changePassword(mockDoctorUser, {
+          currentPassword: 'WrongPassword!',
+          newPassword: 'NewSecretPass456!',
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException if new password is identical to current', async () => {
+      const hashedOld = await bcrypt.hash('SamePassword123!', 10);
+      mockUserRepository.findOne.mockResolvedValueOnce({
+        userId: '2',
+        clinicId: '10',
+        passwordHash: hashedOld,
+      });
+
+      await expect(
+        service.changePassword(mockDoctorUser, {
+          currentPassword: 'SamePassword123!',
+          newPassword: 'SamePassword123!',
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw NotFoundException if user is not found', async () => {
+      mockUserRepository.findOne.mockResolvedValueOnce(null);
+
+      await expect(
+        service.changePassword(mockDoctorUser, {
+          currentPassword: 'SomePassword123!',
+          newPassword: 'NewPassword123!',
         }),
       ).rejects.toThrow(NotFoundException);
     });

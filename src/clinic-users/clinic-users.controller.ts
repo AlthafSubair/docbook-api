@@ -26,6 +26,7 @@ import { CreateClinicUserDto } from './dto/create-clinic-user.dto.js';
 import { UpdateClinicUserDto } from './dto/update-clinic-user.dto.js';
 import { QueryClinicUsersDto } from './dto/query-clinic-users.dto.js';
 import { AdminResetPasswordDto } from './dto/admin-reset-password.dto.js';
+import { ChangePasswordDto } from './dto/change-password.dto.js';
 import { ClinicJwtAuthGuard } from '../auth/guards/clinic-jwt-auth.guard.js';
 import { CurrentClinicUser } from '../auth/decorators/current-clinic-user.decorator.js';
 import type { ClinicJwtPayload } from '../auth/services/clinic-token.service.js';
@@ -84,6 +85,36 @@ export class ClinicUsersController {
     @Query() query: QueryClinicUsersDto,
   ): Promise<PaginatedResponse<SafeClinicUserResponse>> {
     return this.clinicUsersService.findAll(currentUser, query);
+  }
+
+  @Patch('me/change-password')
+  @ApiOperation({
+    summary: 'Change personal password (Self)',
+    description:
+      'Allows any authenticated clinic staff member to change their own password by providing their current password and a new password.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Password changed successfully',
+    schema: {
+      example: {
+        message: 'Your password has been changed successfully.',
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad request (incorrect current password or new password identical to current)',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Missing, invalid, or expired clinic access token',
+  })
+  async changePassword(
+    @CurrentClinicUser() currentUser: ClinicJwtPayload,
+    @Body() dto: ChangePasswordDto,
+  ): Promise<{ message: string }> {
+    return this.clinicUsersService.changePassword(currentUser, dto);
   }
 
   @Get(':id')
