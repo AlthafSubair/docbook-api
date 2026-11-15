@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { ConflictException, ForbiddenException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { vi, describe, beforeEach, it, expect } from 'vitest';
 import { ClinicUsersService } from './clinic-users.service.js';
 import { User } from '../users/entities/user.entity.js';
@@ -213,6 +213,47 @@ describe('ClinicUsersService', () => {
       expect(result.data).toHaveLength(1);
       expect(result.meta.page).toBe(2);
       expect(result.meta.totalPages).toBe(1);
+    });
+  });
+
+  describe('findOne', () => {
+    const mockUser = {
+      userId: '5',
+      clinicId: '10',
+      fullName: 'Dr. Emily Stone',
+      username: 'emily',
+      email: 'emily@citycare.com',
+      phone: '+919876543219',
+      role: UserRole.DOCTOR,
+      isActive: true,
+      isEmailVerified: true,
+      isPhoneVerified: true,
+      passwordHash: 'secret_hash',
+      createdAt: new Date(),
+    };
+
+    it('should return safe staff profile when found within caller clinic', async () => {
+      mockUserRepository.findOne.mockResolvedValueOnce(mockUser);
+
+      const result = await service.findOne(mockAdminUser, '5');
+
+      expect(mockUserRepository.findOne).toHaveBeenCalledWith({
+        where: {
+          userId: '5',
+          clinicId: '10',
+        },
+      });
+      expect(result.userId).toBe('5');
+      expect(result.fullName).toBe('Dr. Emily Stone');
+      expect((result as any).passwordHash).toBeUndefined();
+    });
+
+    it('should throw NotFoundException if user does not exist or belongs to another clinic', async () => {
+      mockUserRepository.findOne.mockResolvedValueOnce(null);
+
+      await expect(service.findOne(mockAdminUser, '999')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 });

@@ -4,6 +4,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Param,
   Post,
   Query,
   UseGuards,
@@ -11,6 +12,7 @@ import {
 import {
   ApiBearerAuth,
   ApiOperation,
+  ApiParam,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
@@ -63,6 +65,8 @@ export class ClinicUsersController {
           page: 1,
           limit: 20,
           totalPages: 1,
+          hasNextPage: false,
+          hasPreviousPage: false,
         },
       },
     },
@@ -76,6 +80,51 @@ export class ClinicUsersController {
     @Query() query: QueryClinicUsersDto,
   ): Promise<PaginatedResponse<SafeClinicUserResponse>> {
     return this.clinicUsersService.findAll(currentUser, query);
+  }
+
+  @Get(':id')
+  @ApiOperation({
+    summary: 'Get a staff member by ID',
+    description:
+      'Fetches the profile details of a single staff member belonging to the caller clinic organization.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Unique staff user ID',
+    example: '2',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Staff member profile',
+    schema: {
+      example: {
+        userId: '2',
+        clinicId: '10',
+        fullName: 'Dr. Jane Doe',
+        username: 'jane.doe',
+        email: 'jane.doe@citycare.com',
+        phone: '+919876543210',
+        role: 'doctor',
+        isActive: true,
+        isEmailVerified: false,
+        isPhoneVerified: false,
+        createdAt: '2026-11-14T17:00:00.000Z',
+      },
+    },
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Missing, invalid, or expired clinic access token',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Staff member not found in this clinic',
+  })
+  async findOne(
+    @CurrentClinicUser() currentUser: ClinicJwtPayload,
+    @Param('id') id: string,
+  ): Promise<SafeClinicUserResponse> {
+    return this.clinicUsersService.findOne(currentUser, id);
   }
 
   @Post()

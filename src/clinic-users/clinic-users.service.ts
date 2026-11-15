@@ -2,6 +2,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -11,22 +12,14 @@ import { UserRole } from '../users/enums/user.enums.js';
 import { CreateClinicUserDto } from './dto/create-clinic-user.dto.js';
 import { QueryClinicUsersDto } from './dto/query-clinic-users.dto.js';
 import { paginateQueryBuilder } from '../common/utils/pagination.util.js';
+import {
+  toSafeClinicUserResponse,
+  type SafeClinicUserResponse,
+} from './utils/clinic-user.mapper.js';
 import type { PaginatedResponse } from '../common/interfaces/paginated-response.interface.js';
 import type { ClinicJwtPayload } from '../auth/services/clinic-token.service.js';
 
-export interface SafeClinicUserResponse {
-  userId: string;
-  clinicId: string;
-  fullName: string;
-  username: string;
-  email: string;
-  phone: string | null;
-  role: UserRole;
-  isActive: boolean;
-  isEmailVerified: boolean;
-  isPhoneVerified: boolean;
-  createdAt: Date;
-}
+export type { SafeClinicUserResponse };
 
 @Injectable()
 export class ClinicUsersService {
@@ -100,19 +93,7 @@ export class ClinicUsersService {
     const savedUser = await this.userRepository.save(user);
 
     // 6. Return safe representation without passwordHash
-    return {
-      userId: savedUser.userId,
-      clinicId: savedUser.clinicId,
-      fullName: savedUser.fullName,
-      username: savedUser.username,
-      email: savedUser.email,
-      phone: savedUser.phone,
-      role: savedUser.role,
-      isActive: savedUser.isActive,
-      isEmailVerified: savedUser.isEmailVerified,
-      isPhoneVerified: savedUser.isPhoneVerified,
-      createdAt: savedUser.createdAt,
-    };
+    return toSafeClinicUserResponse(savedUser);
   }
 
   /**
@@ -147,18 +128,29 @@ export class ClinicUsersService {
 
     qb.orderBy('user.createdAt', 'DESC');
 
-    return paginateQueryBuilder(qb, query, (user) => ({
-      userId: user.userId,
-      clinicId: user.clinicId,
-      fullName: user.fullName,
-      username: user.username,
-      email: user.email,
-      phone: user.phone,
-      role: user.role,
-      isActive: user.isActive,
-      isEmailVerified: user.isEmailVerified,
-      isPhoneVerified: user.isPhoneVerified,
-      createdAt: user.createdAt,
-    }));
+    return paginateQueryBuilder(qb, query, toSafeClinicUserResponse);
+  }
+
+  /**
+   * Fetches a single staff member by ID within the caller's clinic organization.
+   */
+  async findOne(
+    currentUser: ClinicJwtPayload,
+    userId: string,
+  ): Promise<SafeClinicUserResponse> {
+    const user = await this.userRepository.findOne({
+      where: {
+        userId,
+        clinicId: currentUser.clinicId,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException(
+        `Staff member with ID '${userId}' not found in this clinic.`,
+      );
+    }
+
+    return toSafeClinicUserResponse(user);
   }
 }
