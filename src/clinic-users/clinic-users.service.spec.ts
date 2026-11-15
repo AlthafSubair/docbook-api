@@ -1,6 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { vi, describe, beforeEach, it, expect } from 'vitest';
 import { ClinicUsersService } from './clinic-users.service.js';
 import { User } from '../users/entities/user.entity.js';
@@ -254,6 +259,79 @@ describe('ClinicUsersService', () => {
       await expect(service.findOne(mockAdminUser, '999')).rejects.toThrow(
         NotFoundException,
       );
+    });
+  });
+
+  describe('update', () => {
+    const existingStaff = {
+      userId: '5',
+      clinicId: '10',
+      fullName: 'Dr. Emily Stone',
+      username: 'emily',
+      email: 'emily@citycare.com',
+      phone: '+919876543219',
+      role: UserRole.DOCTOR,
+      isActive: true,
+      isEmailVerified: true,
+      isPhoneVerified: true,
+      createdAt: new Date(),
+    };
+
+    it('should successfully update staff member when called by Admin', async () => {
+      mockUserRepository.findOne.mockResolvedValueOnce({ ...existingStaff });
+
+      const result = await service.update(mockAdminUser, '5', {
+        fullName: 'Dr. Emily Watson',
+        role: UserRole.ADMIN,
+        isActive: false,
+      });
+
+      expect(mockUserRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: '5',
+          fullName: 'Dr. Emily Watson',
+          role: UserRole.ADMIN,
+          isActive: false,
+        }),
+      );
+      expect(result.fullName).toBe('Dr. Emily Watson');
+      expect(result.role).toBe(UserRole.ADMIN);
+    });
+
+    it('should throw ForbiddenException if non-admin attempts to update', async () => {
+      await expect(
+        service.update(mockDoctorUser, '5', { fullName: 'Hacked Name' }),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should throw NotFoundException if staff member not found in clinic', async () => {
+      mockUserRepository.findOne.mockResolvedValueOnce(null);
+
+      await expect(
+        service.update(mockAdminUser, '999', { fullName: 'New Name' }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw BadRequestException if admin attempts self-deactivation', async () => {
+      mockUserRepository.findOne.mockResolvedValueOnce({
+        ...existingStaff,
+        userId: '1', // Matches mockAdminUser.sub
+      });
+
+      await expect(
+        service.update(mockAdminUser, '1', { isActive: false }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException if admin attempts self-demotion from admin role', async () => {
+      mockUserRepository.findOne.mockResolvedValueOnce({
+        ...existingStaff,
+        userId: '1',
+      });
+
+      await expect(
+        service.update(mockAdminUser, '1', { role: UserRole.RECEPTIONIST }),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 });

@@ -5,6 +5,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  Patch,
   Post,
   Query,
   UseGuards,
@@ -21,6 +22,7 @@ import {
   SafeClinicUserResponse,
 } from './clinic-users.service.js';
 import { CreateClinicUserDto } from './dto/create-clinic-user.dto.js';
+import { UpdateClinicUserDto } from './dto/update-clinic-user.dto.js';
 import { QueryClinicUsersDto } from './dto/query-clinic-users.dto.js';
 import { ClinicJwtAuthGuard } from '../auth/guards/clinic-jwt-auth.guard.js';
 import { CurrentClinicUser } from '../auth/decorators/current-clinic-user.decorator.js';
@@ -125,6 +127,60 @@ export class ClinicUsersController {
     @Param('id') id: string,
   ): Promise<SafeClinicUserResponse> {
     return this.clinicUsersService.findOne(currentUser, id);
+  }
+
+  @Patch(':id')
+  @ApiOperation({
+    summary: 'Update clinic staff member profile or status',
+    description:
+      'Updates an existing staff member (fullName, phone, role, isActive). Only accessible by clinic administrators. Admins cannot deactivate themselves or revoke their own admin role.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Unique staff user ID',
+    example: '2',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Staff member successfully updated',
+    schema: {
+      example: {
+        userId: '2',
+        clinicId: '10',
+        fullName: 'Dr. Jane Smith',
+        username: 'jane.doe',
+        email: 'jane.doe@citycare.com',
+        phone: '+919876543219',
+        role: 'doctor',
+        isActive: true,
+        isEmailVerified: false,
+        isPhoneVerified: false,
+        createdAt: '2026-11-14T17:00:00.000Z',
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad request (e.g. admin attempting self-deactivation or invalid payload)',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Missing, invalid, or expired clinic access token',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden: Only clinic administrators can update staff members',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Staff member not found in this clinic',
+  })
+  async update(
+    @CurrentClinicUser() currentUser: ClinicJwtPayload,
+    @Param('id') id: string,
+    @Body() dto: UpdateClinicUserDto,
+  ): Promise<SafeClinicUserResponse> {
+    return this.clinicUsersService.update(currentUser, id, dto);
   }
 
   @Post()

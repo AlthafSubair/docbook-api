@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -10,6 +11,7 @@ import bcrypt from 'bcryptjs';
 import { User } from '../users/entities/user.entity.js';
 import { UserRole } from '../users/enums/user.enums.js';
 import { CreateClinicUserDto } from './dto/create-clinic-user.dto.js';
+import { UpdateClinicUserDto } from './dto/update-clinic-user.dto.js';
 import { QueryClinicUsersDto } from './dto/query-clinic-users.dto.js';
 import { paginateQueryBuilder } from '../common/utils/pagination.util.js';
 import {
@@ -152,5 +154,65 @@ export class ClinicUsersService {
     }
 
     return toSafeClinicUserResponse(user);
+  }
+
+  /**
+   * Updates an existing staff member's profile or status.
+   * Only clinic administrators can update staff roles or active status.
+   * Admins cannot deactivate themselves or revoke their own admin role.
+   */
+  async update(
+    currentUser: ClinicJwtPayload,
+    userId: string,
+    dto: UpdateClinicUserDto,
+  ): Promise<SafeClinicUserResponse> {
+    if (currentUser.role !== UserRole.ADMIN) {
+      throw new ForbiddenException(
+        'Only clinic administrators are authorized to update staff members.',
+      );
+    }
+
+    const user = await this.userRepository.findOne({
+      where: {
+        userId,
+        clinicId: currentUser.clinicId,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException(
+        `Staff member with ID '${userId}' not found in this clinic.`,
+      );
+    }
+
+    // Safety guard: Admin cannot deactivate their own account or remove their own admin role
+    if (currentUser.sub === userId) {
+      if (dto.isActive === false) {
+        throw new BadRequestException(
+          'Administrators cannot deactivate their own account.',
+        );
+      }
+      if (dto.role && dto.role !== UserRole.ADMIN) {
+        throw new BadRequestException(
+          'Administrators cannot revoke their own administrator role.',
+        );
+      }
+    }
+
+    if (dto.fullName !== undefined) {
+      user.fullName = dto.fullName.trim();
+    }
+    if (dto.phone !== undefined) {
+      user.phone = dto.phone.trim();
+    }
+    if (dto.role !== undefined) {
+      user.role = dto.role;
+    }
+    if (dto.isActive !== undefined) {
+      user.isActive = dto.isActive;
+    }
+
+    const updated = await this.userRepository.save(user);
+    return toSafeClinicUserResponse(updated);
   }
 }
