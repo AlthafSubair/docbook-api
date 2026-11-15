@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  ForbiddenException,
   Get,
   HttpCode,
   HttpStatus,
@@ -10,6 +11,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import {
+  ApiBearerAuth,
   ApiHeader,
   ApiOperation,
   ApiParam,
@@ -21,6 +23,10 @@ import { ClinicsService } from './clinics.service.js';
 import { OnboardClinicDto } from './dto/onboard-clinic.dto.js';
 import { UpdateClinicDto } from './dto/update-clinic.dto.js';
 import { AdminApiKeyGuard } from '../common/guards/admin-api-key.guard.js';
+import { ClinicJwtAuthGuard } from '../auth/guards/clinic-jwt-auth.guard.js';
+import { CurrentClinicUser } from '../auth/decorators/current-clinic-user.decorator.js';
+import type { ClinicJwtPayload } from '../auth/services/clinic-token.service.js';
+import { UserRole } from '../users/enums/user.enums.js';
 
 @ApiTags('Clinics')
 @Controller('clinics')
@@ -86,6 +92,30 @@ export class ClinicsController {
   })
   async getBySlug(@Param('slug') slug: string) {
     return this.clinicsService.findBySlug(slug);
+  }
+
+  @Get('me')
+  @UseGuards(ClinicJwtAuthGuard)
+  @ApiBearerAuth('JWT-clinic-auth')
+  @ApiOperation({
+    summary: 'Get current clinic profile (Clinic Staff / Admin)',
+    description:
+      'Fetches profile, operational settings, and metadata of the caller clinic organization.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Current clinic organization details',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Missing, invalid, or expired clinic access token',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Clinic not found',
+  })
+  async getMe(@CurrentClinicUser() currentUser: ClinicJwtPayload) {
+    return this.clinicsService.findOne(currentUser.clinicId);
   }
 
   @Get()
